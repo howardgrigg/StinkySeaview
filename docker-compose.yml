@@ -5,7 +5,7 @@ services:
     build: .
     container_name: seaview-stinky-app
     ports:
-      - "5001:5000"  # Host port 5001 maps to container port 5000
+      - "${HOST_PORT:-5002}:5000"  # Use HOST_PORT env var, defaults to 5002
     volumes:
       - ./data:/data  # Persist sensor data between container restarts
     environment:
