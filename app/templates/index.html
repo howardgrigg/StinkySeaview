@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Is Seaview Stinky?</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Hero Section - 1/3 of viewport */
+        .hero {
+            height: 33.33vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: {{ '#d9534f' if stinky else '#5cb85c' }};
+            color: white;
+            text-align: center;
+            transition: background-color 0.5s ease;
+            position: relative;
+        }
+
+        .hero-content h1 {
+            font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+            font-weight: 500;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            opacity: 0.95;
+        }
+
+        .hero-content .answer {
+            font-size: clamp(3rem, 8vw, 6rem);
+            font-weight: 800;
+            margin-bottom: 1rem;
+            line-height: 1;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .hero-content .saying {
+            font-size: clamp(1.2rem, 3vw, 2rem);
+            font-weight: 500;
+            line-height: 1.3;
+        }
+
+        .hero-info {
+            position: absolute;
+            bottom: 1rem;
+            right: 1rem;
+            font-size: 0.85rem;
+            opacity: 0.9;
+            text-align: right;
+        }
+
+        /* Graphs Section - 2/3 of viewport */
+        .graphs-section {
+            height: 66.67vh;
+            background-color: #f5f5f5;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .graphs-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 2rem;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-header {
+            margin-bottom: 1rem;
+        }
+
+        .chart-header h2 {
+            font-size: 1.3rem;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .chart-stats {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.9rem;
+            color: #666;
+            flex-wrap: wrap;
+        }
+
+        .chart-stats .stat {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chart-stats .stat-label {
+            font-weight: 600;
+            color: #888;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .chart-stats .stat-value {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: #333;
+        }
+
+        .chart-stats .stat-value.high {
+            color: #d9534f;
+        }
+
+        .chart-stats .stat-value.normal {
+            color: #5cb85c;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 250px;
+            margin-top: 1rem;
+        }
+
+        .threshold-line {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 0.5rem;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .graphs-container {
+                grid-template-columns: 1fr;
+            }
+
+            .graphs-section {
+                padding: 1rem;
+            }
+
+            .chart-card {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <div class="hero">
+        <div class="hero-content">
+            <h1>Is Seaview Stinky?</h1>
+            <div class="answer">
+                {% if stinky %}
+                    YES 😷
+                {% else %}
+                    NO ✅
+                {% endif %}
+            </div>
+            <div class="saying">
+                {{ saying }}
+            </div>
+        </div>
+        {% if sensor_data and sensor_data.scrape_time %}
+        <div class="hero-info">
+            Data last updated<br>{{ sensor_data.scrape_time | replace('T', ' ') | truncate(19, True, '') }}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Graphs Section -->
+    <div class="graphs-section">
+        <div class="graphs-container">
+            {% if sensor_data and sensor_data.sensors %}
+                {% for sensor in sensor_data.sensors %}
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h2>{{ sensor.sensor_name }}</h2>
+                        <div class="chart-stats">
+                            <div class="stat">
+                                <span class="stat-label">Latest</span>
+                                <span class="stat-value {{ 'high' if sensor.latest_reading > 30 else 'normal' }}">
+                                    {{ "%.1f"|format(sensor.latest_reading) }} ppb
+                                </span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">60 Min Avg</span>
+                                <span class="stat-value {{ 'high' if sensor.average_60_minutes > 30 else 'normal' }}">
+                                    {{ "%.1f"|format(sensor.average_60_minutes) }} ppb
+                                </span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Wind</span>
+                                <span class="stat-value">{{ sensor.wind_direction }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-{{ sensor.sensor_id }}"></canvas>
+                    </div>
+                    <div class="threshold-line">
+                        Red line indicates community guideline (30 ppb)
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="text-align: center; color: #666;">No sensor data is currently available.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // Chart configuration
+        const THRESHOLD = 30; // Community guideline & app threshold
+
+        {% if sensor_data and sensor_data.sensors %}
+        // Calculate the maximum value across ALL sensors to keep Y-axis consistent
+        let actualMaxReading = 0;
+        {% for sensor in sensor_data.sensors %}
+        {
+            const readings = {{ sensor.historical_readings | tojson }};
+            const maxReading = Math.max(...readings);
+            if (maxReading > actualMaxReading) {
+                actualMaxReading = maxReading;
+            }
+        }
+        {% endfor %}
+        // Always add 10% headroom above max reading, but use 35 as minimum
+        const yAxisMax = Math.max(Math.ceil(actualMaxReading * 1.1), 35);
+
+        // Now create all charts with the consistent Y-axis
+        {% for sensor in sensor_data.sensors %}
+        {
+            const ctx = document.getElementById('chart-{{ sensor.sensor_id }}').getContext('2d');
+
+            const timestamps = {{ sensor.historical_timestamps | tojson }};
+            const readings = {{ sensor.historical_readings | tojson }};
+
+            // Format timestamps to show only date/time without year
+            const labels = timestamps.map(ts => {
+                const parts = ts.split(', ');
+                if (parts.length === 2) {
+                    return parts[0].substring(0, 6) + ' ' + parts[1].substring(0, 5);
+                }
+                return ts;
+            });
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'H₂S Level (ppb)',
+                        data: readings,
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        pointHitRadius: 10,
+                        pointHoverRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index',
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: {
+                                size: 13
+                            },
+                            bodyFont: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y.toFixed(2) + ' ppb';
+                                }
+                            }
+                        },
+                        annotation: {
+                            annotations: {
+                                threshold: {
+                                    type: 'line',
+                                    yMin: THRESHOLD,
+                                    yMax: THRESHOLD,
+                                    borderColor: 'rgba(217, 83, 79, 0.5)',
+                                    borderWidth: 2,
+                                    borderDash: [5, 5],
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45,
+                                autoSkip: true,
+                                maxTicksLimit: 20,
+                                font: {
+                                    size: 10
+                                }
+                            },
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: yAxisMax,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + ' ppb';
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        {% endfor %}
+        {% endif %}
+    </script>
+</body>
+</html>
