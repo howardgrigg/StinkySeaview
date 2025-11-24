@@ -254,6 +254,7 @@ def index():
 @app.route('/api/stinky')
 def api_stinky():
     stinky_status = is_stinky()
+    sensor_data = load_sensor_data()
 
     # Pick a random saying based on stinky status
     if stinky_status:
@@ -261,7 +262,12 @@ def api_stinky():
     else:
         message = random.choice(NOT_STINKY_SAYINGS)
 
-    return jsonify(stinky=stinky_status, message=message)
+    # Get last update time
+    last_updated = None
+    if sensor_data and sensor_data.get('scrape_time'):
+        last_updated = sensor_data['scrape_time']
+
+    return jsonify(stinky=stinky_status, message=message, last_updated=last_updated)
 
 @app.route('/api/widget')
 def api_widget():

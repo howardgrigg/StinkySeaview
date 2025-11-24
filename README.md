@@ -150,10 +150,14 @@ curl https://isseaviewstinky.nz/api/stinky
 # Response
 {
   "stinky": false,
-  "message": "Sweet as, bro! No stink today"
+  "message": "Sweet as, bro! No stink today",
+  "last_updated": "2025-11-24T21:39:16.996987"
 }
 
-# Each request includes a different random saying
+# Fields:
+# - stinky: boolean (true if any sensor > 30 ppb in last 30 mins)
+# - message: string (random saying, different each request)
+# - last_updated: ISO 8601 timestamp (when data was last scraped)
 ```
 
 #### Widget API
@@ -224,8 +228,15 @@ message.lineLimit = 3
 
 stack.addSpacer(4)
 
-// Last update
-let updateText = stack.addText("Tap to refresh")
+// Last update time
+let updateTime = "Unknown"
+if (data.last_updated) {
+  let date = new Date(data.last_updated)
+  let formatter = new DateFormatter()
+  formatter.dateFormat = "HH:mm"
+  updateTime = formatter.string(date)
+}
+let updateText = stack.addText(`Updated: ${updateTime}`)
 updateText.font = Font.systemFont(10)
 updateText.textColor = Color.white()
 updateText.textOpacity = 0.7
