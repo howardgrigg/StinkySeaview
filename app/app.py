@@ -254,7 +254,14 @@ def index():
 @app.route('/api/stinky')
 def api_stinky():
     stinky_status = is_stinky()
-    return jsonify(stinky=stinky_status)
+
+    # Pick a random saying based on stinky status
+    if stinky_status:
+        message = random.choice(STINKY_SAYINGS)
+    else:
+        message = random.choice(NOT_STINKY_SAYINGS)
+
+    return jsonify(stinky=stinky_status, message=message)
 
 @app.route('/api/widget')
 def api_widget():

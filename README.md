@@ -2,6 +2,9 @@
 
 A fun web application and API to check the odour status at Seaview Wastewater Treatment Plant based on real-time sensor data from Wellington Water.
 
+**Live Site**: https://isseaviewstinky.nz
+**API Endpoint**: https://isseaviewstinky.nz/api/stinky
+
 ## Features
 
 ### 🎨 Interactive Web Interface
@@ -13,7 +16,7 @@ A fun web application and API to check the odour status at Seaview Wastewater Tr
 *   **Mobile Responsive**: Works great on phones, tablets, and desktop
 
 ### 🔔 API Endpoints
-*   **`/api/stinky`**: Returns JSON with current stinky status: `{"stinky": true/false}`
+*   **`/api/stinky`**: Returns JSON with stinky status and random message: `{"stinky": false, "message": "..."}`
 *   **`/api/widget`**: Returns standalone HTML widget perfect for phone widgets and embedding
 
 ### 📊 Data Collection
@@ -120,7 +123,11 @@ docker logs -f seaview-stinky-app
 
 ### Web Interface
 
-Open `http://localhost:5001` in your browser to see:
+**Live Site**: https://isseaviewstinky.nz
+
+Or for local development: `http://localhost:5001`
+
+The interface shows:
 
 1. **Hero Section** (top 1/3):
    - Large YES/NO answer
@@ -138,39 +145,124 @@ Open `http://localhost:5001` in your browser to see:
 #### Status API
 ```bash
 # Get current stinky status as JSON
-curl http://localhost:5001/api/stinky
+curl https://isseaviewstinky.nz/api/stinky
 
 # Response
-{"stinky": false}
+{
+  "stinky": false,
+  "message": "Sweet as, bro! No stink today"
+}
+
+# Each request includes a different random saying
 ```
 
 #### Widget API
 ```bash
 # Get standalone HTML widget
-curl http://localhost:5001/api/widget
+curl https://isseaviewstinky.nz/api/widget
 
 # Returns full HTML page with:
 # - Hero section
 # - Inline styles
-# - Perfect for embedding in phone widgets
+# - Perfect for embedding in web views
 ```
 
-**Using the Widget on Your Phone:**
+### iOS Widget (Scriptable)
 
-For iOS (Scriptable):
+Complete Scriptable widget that works at any size (small, medium, large):
+
 ```javascript
-let req = new Request("http://your-ip:5001/api/widget")
-let html = await req.loadString()
-let webview = new WebView()
-await webview.loadHTML(html)
+// Seaview Stinky Widget for Scriptable
+// Works at any widget size
+
+const API_URL = "https://isseaviewstinky.nz/api/stinky"
+
+// Fetch data
+let data
+try {
+  let req = new Request(API_URL)
+  data = await req.loadJSON()
+} catch (error) {
+  console.error("Failed to fetch data:", error)
+  data = { stinky: false, message: "Unable to load data" }
+}
+
+// Create widget
+let widget = new ListWidget()
+
+// Set background color
+widget.backgroundColor = data.stinky ?
+  new Color("#d9534f") : // Red for stinky
+  new Color("#5cb85c")   // Green for not stinky
+
+// Add content
+let stack = widget.addStack()
+stack.layoutVertically()
+stack.centerAlignContent()
+
+// Title
+let title = stack.addText("Is Seaview Stinky?")
+title.font = Font.semiboldSystemFont(14)
+title.textColor = Color.white()
+title.textOpacity = 0.9
+
+stack.addSpacer(8)
+
+// Answer (YES/NO)
+let answer = stack.addText(data.stinky ? "YES 😷" : "NO ✅")
+answer.font = Font.boldSystemFont(28)
+answer.textColor = Color.white()
+
+stack.addSpacer(8)
+
+// Message
+let message = stack.addText(data.message)
+message.font = Font.systemFont(13)
+message.textColor = Color.white()
+message.minimumScaleFactor = 0.8
+message.lineLimit = 3
+
+stack.addSpacer(4)
+
+// Last update
+let updateText = stack.addText("Tap to refresh")
+updateText.font = Font.systemFont(10)
+updateText.textColor = Color.white()
+updateText.textOpacity = 0.7
+
+// Set URL to open app
+widget.url = "https://isseaviewstinky.nz"
+
+// Present widget
+if (config.runsInWidget) {
+  Script.setWidget(widget)
+} else {
+  widget.presentMedium()
+}
+
+Script.complete()
 ```
+
+**Setup Instructions:**
+1. Install [Scriptable](https://scriptable.app) from the App Store
+2. Create a new script and paste the code above
+3. Add a Scriptable widget to your home screen
+4. Long press the widget → Edit Widget → Choose the script
+5. Widget refreshes automatically and shows live data!
+
+### Android Widget (KWGT/Tasker)
 
 For Android (KWGT/Tasker):
 - Add web view component
-- Point to `http://your-ip:5001/api/widget`
+- Point to `https://isseaviewstinky.nz/api/widget`
 - Set auto-refresh for live updates
 
-**Note:** Replace `localhost` with your server's IP address or use a service like ngrok for external access.
+Or use HTTP Request with the API:
+```
+URL: https://isseaviewstinky.nz/api/stinky
+Parse JSON: $si(wg, isseaviewstinky, stinky)$
+Display message: $si(wg, isseaviewstinky, message)$
+```
 
 ## Configuration
 
