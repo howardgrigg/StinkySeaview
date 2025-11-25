@@ -177,81 +177,128 @@ Complete Scriptable widget that works at any size (small, medium, large):
 
 ```javascript
 // Seaview Stinky Widget for Scriptable
-// Works at any widget size
+// Clean centered layout, larger fonts for large widgets
 
-const API_URL = "https://isseaviewstinky.nz/api/stinky"
+const API_URL = "https://isseaviewstinky.nz/api/stinky";
 
-// Fetch data
-let data
+// ---------- Helpers ----------
+
+function getFamily() {
+  return config.widgetFamily || "medium";
+}
+
+function getFontSizes(family) {
+  switch (family) {
+    case "small":
+      return { title: 13, answer: 26, message: 11, meta: 9, spacing: 6 };
+    case "large":
+      return { title: 24, answer: 46, message: 18, meta: 13, spacing: 12 };
+    case "medium":
+    default:
+      return { title: 18, answer: 34, message: 14, meta: 11, spacing: 8 };
+  }
+}
+
+function formatUpdated(lastUpdated) {
+  if (!lastUpdated) return "Updated just now";
+
+  const d = new Date(lastUpdated);
+  if (isNaN(d)) return "Updated just now";
+
+  const df = new DateFormatter();
+  df.useNoDateStyle();
+  df.useShortTimeStyle();
+  return `Updated ${df.string(d)}`;
+}
+
+// ---------- Fetch data ----------
+
+let data;
 try {
-  let req = new Request(API_URL)
-  data = await req.loadJSON()
+  const req = new Request(API_URL);
+  data = await req.loadJSON();
 } catch (error) {
-  console.error("Failed to fetch data:", error)
-  data = { stinky: false, message: "Unable to load data" }
+  console.error("Failed to fetch data:", error);
+  data = {
+    stinky: false,
+    message: "Unable to load data",
+    last_updated: null
+  };
 }
 
-// Create widget
-let widget = new ListWidget()
+const isStinky = !!data.stinky;
 
-// Set background color
-widget.backgroundColor = data.stinky ?
-  new Color("#d9534f") : // Red for stinky
-  new Color("#5cb85c")   // Green for not stinky
+// Only show API message
+const messageText =
+  typeof data.message === "string" && data.message.trim()
+    ? data.message
+    : "Unable to load data";
 
-// Add content
-let stack = widget.addStack()
-stack.layoutVertically()
-stack.centerAlignContent()
+const updatedText = formatUpdated(data.last_updated);
 
-// Title
-let title = stack.addText("Is Seaview Stinky?")
-title.font = Font.semiboldSystemFont(14)
-title.textColor = Color.white()
-title.textOpacity = 0.9
+// ---------- Build widget ----------
 
-stack.addSpacer(8)
+const family = getFamily();
+const fonts = getFontSizes(family);
 
-// Answer (YES/NO)
-let answer = stack.addText(data.stinky ? "YES 😷" : "NO ✅")
-answer.font = Font.boldSystemFont(28)
-answer.textColor = Color.white()
+let widget = new ListWidget();
 
-stack.addSpacer(8)
+widget.backgroundColor = isStinky
+  ? new Color("#d9534f")
+  : new Color("#5cb85c");
 
-// Message
-let message = stack.addText(data.message)
-message.font = Font.systemFont(13)
-message.textColor = Color.white()
-message.minimumScaleFactor = 0.8
-message.lineLimit = 3
+if (family === "large") widget.setPadding(22, 22, 22, 22);
+else if (family === "medium") widget.setPadding(18, 18, 18, 18);
+else widget.setPadding(12, 12, 12, 12);
 
-stack.addSpacer(4)
+// Auto-refresh after 10 min
+widget.refreshAfterDate = new Date(Date.now() + 10 * 60 * 1000);
 
-// Last update time
-let updateTime = "Unknown"
-if (data.last_updated) {
-  let date = new Date(data.last_updated)
-  let formatter = new DateFormatter()
-  formatter.dateFormat = "HH:mm"
-  updateTime = formatter.string(date)
-}
-let updateText = stack.addText(`Updated: ${updateTime}`)
-updateText.font = Font.systemFont(10)
-updateText.textColor = Color.white()
-updateText.textOpacity = 0.7
+// CENTRED LAYOUT
+let outer = widget.addStack();
+outer.layoutVertically();
+outer.centerAlignContent();
 
-// Set URL to open app
-widget.url = "https://isseaviewstinky.nz"
+// ----- Title -----
+let title = outer.addText("Is Seaview Stinky?");
+title.font = Font.semiboldSystemFont(fonts.title);
+title.textColor = Color.white();
+title.textOpacity = 0.9;
 
-// Present widget
+outer.addSpacer(fonts.spacing);
+
+// ----- Answer -----
+let answer = outer.addText(isStinky ? "YES 😷" : "NO ✅");
+answer.font = Font.boldSystemFont(fonts.answer);
+answer.textColor = Color.white();
+
+outer.addSpacer(fonts.spacing);
+
+// ----- Message -----
+let msg = outer.addText(messageText);
+msg.font = Font.systemFont(fonts.message);
+msg.textColor = Color.white();
+msg.minimumScaleFactor = 0.7;
+msg.lineLimit = family === "large" ? 4 : family === "medium" ? 3 : 2;
+
+outer.addSpacer(6);
+
+// ----- Updated line -----
+let updated = outer.addText(updatedText);
+updated.font = Font.systemFont(fonts.meta);
+updated.textColor = Color.white();
+updated.textOpacity = 0.7;
+
+// Tap widget opens website
+widget.url = "https://isseaviewstinky.nz";
+
 if (config.runsInWidget) {
-  Script.setWidget(widget)
+  Script.setWidget(widget);
 } else {
-  widget.presentMedium()
+  await widget.presentLarge();
 }
 
-Script.complete()
+Script.complete();
 ```
 
 **Setup Instructions:**

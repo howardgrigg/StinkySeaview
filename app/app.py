@@ -6,6 +6,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import os
 import json
 import random
+import pytz
 
 app = Flask(__name__)
 
@@ -80,6 +81,11 @@ STINKY_SAYINGS = [
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'sensor_data.json')
 STINKY_THRESHOLD = 30  # Community guideline threshold (ppb)
 MONITORING_PERIOD_MINS = 30 # Check for readings above threshold in the last 30 minutes
+NZ_TZ = pytz.timezone('Pacific/Auckland')
+
+def get_nz_time():
+    """Get current time in New Zealand timezone"""
+    return datetime.now(NZ_TZ)
 
 def load_sensor_data():
     if os.path.exists(DATA_FILE):
@@ -103,9 +109,17 @@ def is_stinky():
     if not data or 'sensors' not in data or not data['sensors']:
         return False # No data, so not stinky
 
-    now = datetime.now()
+    now = get_nz_time()
     # Check if the scraped data itself is too old to be relevant
-    scrape_time = datetime.fromisoformat(data.get('scrape_time', datetime.min.isoformat()))
+    scrape_time_str = data.get('scrape_time', datetime.min.isoformat())
+    try:
+        scrape_time = datetime.fromisoformat(scrape_time_str)
+        # Make it timezone-aware if it's not already
+        if scrape_time.tzinfo is None:
+            scrape_time = NZ_TZ.localize(scrape_time)
+    except:
+        scrape_time = get_nz_time()
+
     if now - scrape_time > timedelta(minutes=MONITORING_PERIOD_MINS * 2): # Allow some buffer
         print("Warning: Scraped data is too old. Considering as not stinky.")
         return False
@@ -115,6 +129,10 @@ def is_stinky():
     for sensor in data['sensors']:
         try:
             reading_time = datetime.fromisoformat(sensor.get('timestamp', datetime.min.isoformat()))
+            # Make it timezone-aware if it's not already
+            if reading_time.tzinfo is None:
+                reading_time = NZ_TZ.localize(reading_time)
+
             latest_reading = sensor.get('latest_reading', 0)
             average_60_minutes = sensor.get('average_60_minutes', 0)
 
@@ -130,7 +148,7 @@ def is_stinky():
     return False
 
 def scrape_data():
-    print(f"[{datetime.now()}] Scraping data for all sensors...")
+    print(f"[{get_nz_time()}] Scraping data for all sensors...")
     all_sensor_data = []
     base_url = "https://www.wellingtonwater.co.nz/your-water-2/topic/wastewater-2/wastewater-treatment-plants/seaview-wastewater-treatment-plant/seaview-wastewater-treatment-plant-odour-monitors/showdata/?DataSource="
 
@@ -231,11 +249,11 @@ def scrape_data():
     # Add a top-level scrape time to the saved data for checking freshness
     final_data = {
         "sensors": all_sensor_data,
-        "scrape_time": datetime.now().isoformat()
+        "scrape_time": get_nz_time().isoformat()
     }
-    
+
     save_sensor_data(final_data)
-    print(f"[{datetime.now()}] Completed scraping for all sensors. Total readings: {len(all_sensor_data)}.")
+    print(f"[{get_nz_time()}] Completed scraping for all sensors. Total readings: {len(all_sensor_data)}.")
 
 @app.route('/')
 def index():
