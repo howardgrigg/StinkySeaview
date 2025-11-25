@@ -142,6 +142,40 @@ The interface shows:
 
 ### API Endpoints
 
+#### Stats API
+```bash
+# View privacy-friendly analytics
+curl https://isseaviewstinky.nz/stats
+
+# Response
+{
+  "total_unique_visitors": 152,
+  "total_visits": 487,
+  "days": {
+    "2025-11-25": {
+      "unique_visitors": 47,
+      "total_visits": 203,
+      "endpoints": {
+        "/": 120,
+        "/api/stinky": 65,
+        "/api/widget": 18
+      },
+      "hourly": {
+        "08": 15,
+        "09": 23,
+        "10": 31
+      }
+    }
+  }
+}
+```
+
+**Privacy Features:**
+- No IP addresses stored
+- Visitor hashes reset daily (cannot track individuals)
+- No cookies or tracking scripts
+- GDPR compliant
+
 #### Status API
 ```bash
 # Get current stinky status as JSON
@@ -348,6 +382,51 @@ STINKY_SAYINGS = [
     # ... add more
 ]
 ```
+
+## Social Media Setup
+
+The site includes Open Graph and Twitter Card meta tags for beautiful social media previews when sharing links.
+
+### Required Images
+
+Create these images and place them in `app/static/`:
+
+1. **og-image.png** - 1200 x 630 pixels
+   - Main social media preview image (Facebook, Twitter, LinkedIn, Discord, etc.)
+   - Shows when link is shared on social platforms
+
+2. **favicon-32x32.png** - 32 x 32 pixels
+   - Browser tab icon
+
+3. **apple-touch-icon.png** - 180 x 180 pixels
+   - iOS home screen icon when users save site to their phone
+
+### Image Generation Suggestions
+
+**OG Image (1200x630px):**
+- Show "Is Seaview Stinky?" title prominently
+- Include preview of dashboard or graph visualizations
+- Use brand colors: green (#5cb85c) and red (#d9534f)
+- High contrast for visibility in social feeds
+- Keep text large and readable
+
+**Favicon (32x32px):**
+- Simple icon (nose, sensor, or letter "S")
+- Single color on contrasting background
+- Must be recognizable at tiny size
+
+**Apple Touch Icon (180x180px):**
+- Similar to favicon but with more detail allowed
+- Leave padding around edges (iOS adds rounded corners)
+- Use brand colors
+
+### Testing Social Media Previews
+
+After adding images, test your social media previews:
+- **Facebook**: [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/)
+- **Twitter**: [Twitter Card Validator](https://cards-dev.twitter.com/validator)
+- **LinkedIn**: Share in LinkedIn and check preview
+- **Discord**: Paste link in Discord and check embed
 
 ## Technical Details
 

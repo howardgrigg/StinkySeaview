@@ -1,5 +1,5 @@
 import requests
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -7,6 +7,8 @@ import os
 import json
 import random
 import pytz
+import hashlib
+from functools import wraps
 
 app = Flask(__name__)
 
@@ -79,6 +81,7 @@ STINKY_SAYINGS = [
 ]
 
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'sensor_data.json')
+ANALYTICS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data', 'analytics.json')
 STINKY_THRESHOLD = 30  # Community guideline threshold (ppb)
 MONITORING_PERIOD_MINS = 30 # Check for readings above threshold in the last 30 minutes
 NZ_TZ = pytz.timezone('Pacific/Auckland')
@@ -86,6 +89,98 @@ NZ_TZ = pytz.timezone('Pacific/Auckland')
 def get_nz_time():
     """Get current time in New Zealand timezone"""
     return datetime.now(NZ_TZ)
+
+# ========== Analytics Functions ==========
+
+def get_visitor_hash(ip_address, date_str):
+    """Create a one-way hash of IP address with daily salt for privacy"""
+    salt = f"seaview-{date_str}"
+    return hashlib.sha256(f"{salt}-{ip_address}".encode()).hexdigest()[:16]
+
+def load_analytics():
+    """Load analytics data from file"""
+    if os.path.exists(ANALYTICS_FILE):
+        try:
+            with open(ANALYTICS_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_analytics(data):
+    """Save analytics data to file"""
+    data_dir = os.path.dirname(ANALYTICS_FILE)
+    os.makedirs(data_dir, exist_ok=True)
+    with open(ANALYTICS_FILE, 'w') as f:
+        json.dump(data, f, indent=2)
+
+def track_visit(endpoint):
+    """Track a visit to an endpoint (privacy-friendly)"""
+    try:
+        now = get_nz_time()
+        date_str = now.strftime('%Y-%m-%d')
+        hour_str = now.strftime('%H')
+
+        # Get visitor IP (use X-Forwarded-For if behind proxy)
+        ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        if ip:
+            ip = ip.split(',')[0].strip()
+        else:
+            ip = 'unknown'
+
+        # Create privacy-friendly hash
+        visitor_hash = get_visitor_hash(ip, date_str)
+
+        # Load analytics
+        analytics = load_analytics()
+
+        # Initialize date structure if needed
+        if date_str not in analytics:
+            analytics[date_str] = {
+                'unique_visitors': set(),
+                'total_visits': 0,
+                'endpoints': {},
+                'hourly': {}
+            }
+
+        day_data = analytics[date_str]
+
+        # Track unique visitor (using set for deduplication)
+        if isinstance(day_data['unique_visitors'], list):
+            day_data['unique_visitors'] = set(day_data['unique_visitors'])
+        day_data['unique_visitors'].add(visitor_hash)
+
+        # Track total visits
+        day_data['total_visits'] += 1
+
+        # Track endpoint
+        if endpoint not in day_data['endpoints']:
+            day_data['endpoints'][endpoint] = 0
+        day_data['endpoints'][endpoint] += 1
+
+        # Track hourly
+        if hour_str not in day_data['hourly']:
+            day_data['hourly'][hour_str] = 0
+        day_data['hourly'][hour_str] += 1
+
+        # Convert set to list for JSON serialization
+        day_data['unique_visitors'] = list(day_data['unique_visitors'])
+
+        # Save analytics
+        save_analytics(analytics)
+    except Exception as e:
+        # Don't let analytics errors break the app
+        print(f"Analytics error: {e}")
+
+def with_analytics(endpoint_name):
+    """Decorator to track visits to endpoints"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            track_visit(endpoint_name)
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 def load_sensor_data():
     if os.path.exists(DATA_FILE):
@@ -256,6 +351,7 @@ def scrape_data():
     print(f"[{get_nz_time()}] Completed scraping for all sensors. Total readings: {len(all_sensor_data)}.")
 
 @app.route('/')
+@with_analytics('/')
 def index():
     stinky_status = is_stinky()
     sensor_data = load_sensor_data() # Load the comprehensive data
@@ -270,6 +366,7 @@ def index():
     return render_template('index.html', stinky=stinky_status, sensor_data=sensor_data, saying=saying)
 
 @app.route('/api/stinky')
+@with_analytics('/api/stinky')
 def api_stinky():
     stinky_status = is_stinky()
     sensor_data = load_sensor_data()
@@ -288,6 +385,7 @@ def api_stinky():
     return jsonify(stinky=stinky_status, message=message, last_updated=last_updated)
 
 @app.route('/api/widget')
+@with_analytics('/api/widget')
 def api_widget():
     stinky_status = is_stinky()
     sensor_data = load_sensor_data()
@@ -366,6 +464,34 @@ def api_widget():
 </html>"""
 
     return html
+
+@app.route('/stats')
+def stats():
+    """Display analytics statistics"""
+    analytics = load_analytics()
+
+    # Convert unique_visitors lists to counts
+    stats_data = {}
+    for date, data in analytics.items():
+        stats_data[date] = {
+            'unique_visitors': len(data.get('unique_visitors', [])),
+            'total_visits': data.get('total_visits', 0),
+            'endpoints': data.get('endpoints', {}),
+            'hourly': data.get('hourly', {})
+        }
+
+    # Sort by date (most recent first)
+    sorted_stats = dict(sorted(stats_data.items(), reverse=True))
+
+    # Calculate totals
+    total_visitors = sum(day['unique_visitors'] for day in stats_data.values())
+    total_visits = sum(day['total_visits'] for day in stats_data.values())
+
+    return jsonify({
+        'total_unique_visitors': total_visitors,
+        'total_visits': total_visits,
+        'days': sorted_stats
+    })
 
 # Schedule data scraping
 scheduler = BackgroundScheduler()
